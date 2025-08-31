@@ -53,3 +53,6 @@ weather-dashboard/
 ├─ .env # API key
 ├─ package.json
 └─ vite.config.js
+
+
+
