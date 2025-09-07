@@ -1,146 +1,165 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
+import { debounce } from "lodash";
+import { ThemeProvider } from "styled-components";
+import { theme } from "../styles/styles";
+import {
+  WeatherCardContainer,
+  SearchBarContainer,
+  Input,
+  Button,
+  ErrorMessage,
+  Temperature,
+  Location,
+  DetailsContainer,
+  Detail,
+  LoadingSpinner,
+  WeatherIcon,
+  DetailIcon,
+  SearchIcon,
+} from "./WeatherCardStyles";
 import search_icon from "../assets/search.png";
 import humidity_icon from "../assets/humidity.png";
-import windy_icon from "../assets/windy.png";
+import wind_icon from "../assets/windy.png";
 import sunny_icon from "../assets/sunny.png";
 import rainy_icon from "../assets/rainy.png";
 import thunderstorm_icon from "../assets/thunderstorm.png";
 import rainy_sunny_icon from "../assets/rainy_sunny.png";
+import mist_icon from "../assets/rainy.png";
 
-const WeatherCard = ({ weatherData, onSearch }) => {
-  const [city, setCity] = useState("");
+const normalizeWeatherCondition = (condition) => {
+  if (!condition) {
+    console.log("No weather condition provided, defaulting to 'clear'");
+    return "clear";
+  }
+  const normalized = condition.toLowerCase();
+  console.log("Weather condition from API:", condition, "Normalized:", normalized);
+  if (normalized.includes("clear")) return "clear";
+  if (normalized.includes("cloud")) return "clear"; // Map Clouds, Few Clouds, etc. to clear
+  if (normalized.includes("rain")) return "rain";
+  if (normalized.includes("drizzle")) return "drizzle";
+  if (normalized.includes("thunder")) return "thunderstorm";
+  if (normalized.includes("snow")) return "rain"; // Map Snow to rain
+  if (normalized.includes("mist") || normalized.includes("fog")) return "mist";
+  console.log("Unknown weather condition, using fallback:", normalized);
+  return "clear";
+};
 
-  const temp = weatherData?.main?.temp ?? "--";
-  const location = weatherData?.name ?? "London";
-  const humidity = weatherData?.main?.humidity ?? "--";
-  const wind = weatherData?.wind?.speed
-    ? (weatherData.wind.speed * 3.6).toFixed(1) // m/s -> km/h
-    : "--";
-  const error = weatherData?.error ?? "";
+const WeatherCard = ({ weatherData, onSearch, isLoading = false }) => {
+  const [city, setCity] = useState(localStorage.getItem("lastCity") || "");
+  const [error, setError] = useState(weatherData?.error ?? "");
 
-  const weatherCondition = weatherData?.weather?.[0]?.main ?? "Clear";
   const weatherIconMap = {
-    Clear: sunny_icon,
-    Rain: rainy_icon,
-    Drizzle: rainy_icon,
-    Thunderstorm: thunderstorm_icon,
-    "Rain Sun": rainy_sunny_icon,
+    clear: sunny_icon,
+    rain: rainy_icon,
+    drizzle: rainy_icon,
+    thunderstorm: thunderstorm_icon,
+    mist: mist_icon,
+    "rain sun": rainy_sunny_icon,
   };
+
+  const debouncedSearch = useCallback(
+    debounce((city) => {
+      if (city.trim()) onSearch?.(city);
+    }, 500),
+    [onSearch]
+  );
+
+  const handleSearch = useCallback(() => {
+    if (!city.trim()) {
+      setError("Please enter a city name");
+      return;
+    }
+    setError("");
+    debouncedSearch(city);
+    localStorage.setItem("lastCity", city);
+    setCity("");
+  }, [city, debouncedSearch]);
+
+  if (!weatherData || !weatherData.main || !weatherData.weather) {
+    return (
+      <ThemeProvider theme={theme}>
+        <WeatherCardContainer>
+          <SearchBarContainer>
+            <label htmlFor="city-input" style={{ display: "none" }}>
+              Search city
+            </label>
+            <Input
+              id="city-input"
+              type="text"
+              placeholder="Search city"
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+            />
+            <Button onClick={handleSearch} aria-label="Search city weather">
+              <SearchIcon src={search_icon} alt="Search icon" />
+            </Button>
+          </SearchBarContainer>
+          {error && <ErrorMessage role="alert">{error}</ErrorMessage>}
+          {!error && <ErrorMessage>No weather data available</ErrorMessage>}
+        </WeatherCardContainer>
+      </ThemeProvider>
+    );
+  }
+
+  const temp = weatherData.main?.temp ?? "--";
+  const location = weatherData.name ?? "Unknown Location";
+  const humidity = weatherData.main?.humidity ?? "--";
+  const wind = weatherData.wind?.speed ? (weatherData.wind.speed * 3.6).toFixed(1) : "--";
+  const weatherCondition = normalizeWeatherCondition(weatherData.weather?.[0]?.main);
   const weatherIcon = weatherIconMap[weatherCondition] || sunny_icon;
+  console.log("Selected weather icon:", weatherIcon);
 
   return (
-    <div
-      style={{
-        padding: "40px",
-        borderRadius: "10px",
-        backgroundImage: "linear-gradient(45deg, #2f4680, #500ae4)",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        maxWidth: "400px",
-        width: "90%",
-        boxSizing: "border-box",
-      }}
-    >
-      {/* Search Bar */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "12px",
-          marginBottom: "20px",
-          width: "100%",
-        }}
-      >
-        <input
-          type="text"
-          placeholder="Search city"
-          value={city}
-          onChange={(e) => setCity(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && onSearch?.(city)}
-          style={{
-            height: "50px",
-            border: "none",
-            outline: "none",
-            borderRadius: "40px",
-            paddingLeft: "25px",
-            color: "#fff",
-            background: "#3b3b3b",
-            fontSize: "18px",
-            flex: 1,
-            "::placeholder": { color: "#ccc" },
-          }}
-        />
-        <button
-          onClick={() => onSearch?.(city)}
-          style={{
-            height: "50px",
-            width: "50px",
-            borderRadius: "50%",
-            background: "#3b3b3b",
-            border: "none",
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            cursor: "pointer",
-            padding: 0,
-          }}
-        >
-          <img src={search_icon} alt="search" style={{ width: "26px", height: "26px" }} />
-        </button>
-      </div>
-
-      {/* Error Message */}
-      {error && (
-        <div
-          style={{
-            backgroundColor: "#f8d7da",
-            color: "#842029",
-            padding: "8px 12px",
-            borderRadius: "8px",
-            width: "100%",
-            textAlign: "center",
-            marginBottom: "10px",
-          }}
-        >
-          {error}
+    <ThemeProvider theme={theme}>
+      <WeatherCardContainer>
+        <SearchBarContainer>
+          <label htmlFor="city-input" style={{ display: "none" }}>
+            Search city
+          </label>
+          <Input
+            id="city-input"
+            type="text"
+            placeholder="Search city"
+            value={city}
+            onChange={(e) => setCity(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+          />
+          <Button onClick={handleSearch} aria-label="Search city weather">
+            <SearchIcon src={search_icon} alt="Search icon" />
+          </Button>
+        </SearchBarContainer>
+        {error && <ErrorMessage role="alert">{error}</ErrorMessage>}
+        <div role="status" aria-live="polite">
+          {isLoading ? (
+            <LoadingSpinner />
+          ) : (
+            <>
+              <WeatherIcon src={weatherIcon} alt={`Current weather: ${weatherCondition}`} loading="lazy" />
+              <Temperature>{temp === "--" ? temp : temp.toFixed(1)}°C</Temperature>
+              <Location>{location}</Location>
+              <DetailsContainer>
+                <Detail>
+                  <DetailIcon src={humidity_icon} alt="Humidity icon" />
+                  <div>
+                    <p>{humidity}%</p>
+                    <span>Humidity</span>
+                  </div>
+                </Detail>
+                <Detail>
+                  <DetailIcon src={wind_icon} alt="Wind speed icon" />
+                  <div>
+                    <p>{wind} km/h</p>
+                    <span>Wind Speed</span>
+                  </div>
+                </Detail>
+              </DetailsContainer>
+            </>
+          )}
         </div>
-      )}
-
-      {/* Weather Icon & Temperature */}
-      <img src={weatherIcon} alt={weatherCondition} style={{ width: "150px", margin: "30px 0" }} />
-      <p style={{ color: "#fff", fontSize: "6vw", lineHeight: 1, fontWeight: "bold" }}>{temp}°C</p>
-      <p style={{ color: "#fff", fontSize: "4vw", fontWeight: "500" }}>{location}</p>
-
-      {/* Weather Details */}
-      <div
-        style={{
-          width: "100%",
-          marginTop: "40px",
-          color: "#fff",
-          display: "flex",
-          justifyContent: "space-between",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "flex-start", gap: "12px", fontSize: "22px" }}>
-          <img src={humidity_icon} alt="humidity" style={{ width: "26px", marginTop: "10px" }} />
-          <div>
-            <p style={{ fontWeight: "600" }}>{humidity}%</p>
-            <span style={{ display: "block", fontSize: "16px" }}>Humidity</span>
-          </div>
-        </div>
-
-        <div style={{ display: "flex", alignItems: "flex-start", gap: "12px", fontSize: "22px" }}>
-          <img src={windy_icon} alt="wind speed" style={{ width: "26px", marginTop: "10px" }} />
-          <div>
-            <p style={{ fontWeight: "600" }}>{wind} km/h</p>
-            <span style={{ display: "block", fontSize: "16px" }}>Wind Speed</span>
-          </div>
-        </div>
-      </div>
-    </div>
+      </WeatherCardContainer>
+    </ThemeProvider>
   );
 };
 
-export default WeatherCard;
-
+export default React.memo(WeatherCard);

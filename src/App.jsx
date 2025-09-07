@@ -1,32 +1,33 @@
-// src/App.jsx
-import { useState, useEffect } from "react";
+import React, { useState } from "react";
 import WeatherCard from "./components/WeatherCard";
-import { fetchWeather } from "./services/WeatherService";
 
-function App() {
-  const [weatherData, setWeatherData] = useState(null);
-  const [city, setCity] = useState("London"); // default city
+const App = () => {
+  const [weatherData, setWeatherData] = useState();
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Fetch default city weather on mount
-  useEffect(() => {
-    handleSearch(city);
-  }, []);
-
-  // Function to fetch weather
-  const handleSearch = async (searchCity) => {
-    if (!searchCity) return;
-
-    const data = await fetchWeather(searchCity);
-    setWeatherData(data);
+  const fetchWeather = async (city) => {
+    try {
+      setIsLoading(true);
+      const response = await fetch(
+        `https://api.openweathermap.org/data/2.5/weather?q=${city}&units=metric&appid=${import.meta.env.VITE_API_KEY}`
+      );
+      const data = await response.json();
+      if (response.ok) {
+        setWeatherData(data);
+      } else {
+        setWeatherData({ error: data.message || "City not found" });
+      }
+    } catch (error) {
+      setWeatherData({ error: "Failed to fetch weather data" });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  return (
-    <div className="app">
-      <WeatherCard weatherData={weatherData} onSearch={handleSearch} />
-    </div>
-  );
-}
+  return <WeatherCard weatherData={weatherData} onSearch={fetchWeather} isLoading={isLoading} />;
+};
 
 export default App;
+
 
 
